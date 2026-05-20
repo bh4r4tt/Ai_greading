@@ -1,45 +1,81 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+from supabase import create_client, Client
 
 # ----------------------------------------------------
 # 1. INITIAL CONFIGURATION
 # ----------------------------------------------------
 st.set_page_config(page_title="AI Vision Analyst", layout="wide")
 
-# ----------------------------------------------------
-# 2. ACCESS KEY LOGIN SYSTEM
-# ----------------------------------------------------
-def check_access():
-    """Checks if the user has entered a valid access key."""
-    if "access_granted" not in st.session_state:
-        st.session_state["access_granted"] = False
+# Initialize Supabase Client
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
-    if not st.session_state["access_granted"]:
+supabase = init_supabase()
+
+# ----------------------------------------------------
+# 2. SUPABASE AUTHENTICATION SYSTEM
+# ----------------------------------------------------
+def auth_system():
+    if "user_authenticated" not in st.session_state:
+        st.session_state["user_authenticated"] = False
+
+    if not st.session_state["user_authenticated"]:
         st.title("🔐 Welcome to BullGPT Analyst")
-        st.markdown("Please enter your private access key to use the scanner.")
+        st.markdown("Create an account or log in to access the chart scanner.")
         
-        user_key = st.text_input("Access Key", type="password")
+        # Create Login / Register Tabs
+        tab1, tab2 = st.tabs(["Log In", "Register"])
         
-        if st.button("Login"):
-            # Check if the entered key is in our secret list of valid keys
-            if user_key in st.secrets["valid_access_keys"]:
-                st.session_state["access_granted"] = True
-                st.rerun()
-            else:
-                st.error("🚫 Invalid or expired access key.")
+        with tab1:
+            st.subheader("Sign In")
+            login_email = st.text_input("Email", key="login_email")
+            login_password = st.text_input("Password", type="password", key="login_password")
+            
+            if st.button("Login", type="primary"):
+                try:
+                    # Send credentials to Supabase
+                    response = supabase.auth.sign_in_with_password({
+                        "email": login_email,
+                        "password": login_password
+                    })
+                    st.session_state["user_authenticated"] = True
+                    st.success("Logged in successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error("Invalid email or password.")
+                    
+        with tab2:
+            st.subheader("Create a Free Account")
+            reg_email = st.text_input("Email", key="reg_email")
+            reg_password = st.text_input("Password (min 6 characters)", type="password", key="reg_password")
+            
+            if st.button("Register", type="primary"):
+                try:
+                    # Create new user in Supabase
+                    response = supabase.auth.sign_up({
+                        "email": reg_email,
+                        "password": reg_password
+                    })
+                    st.success("Account created! You can now log in.")
+                except Exception as e:
+                    st.error(f"Registration failed: {str(e)}")
+                    
         return False
     return True
 
 # ----------------------------------------------------
-# 3. MAIN APPLICATION (Only runs if unlocked)
+# 3. MAIN APPLICATION (Only runs if authenticated)
 # ----------------------------------------------------
-if check_access():
+if auth_system():
     
     st.title("📊 AI Vision-Based Chart Analyst")
     st.markdown("Upload a screenshot of any trading chart for instant visual structure analysis.")
 
-    # Sidebar Configuration (No longer asks for API Key!)
     st.sidebar.header("Configuration Panel")
     
     trading_style = st.sidebar.selectbox(
@@ -47,11 +83,12 @@ if check_access():
         ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing Trader (H4-Daily)"]
     )
     
+    # Logout Button
     if st.sidebar.button("Log Out"):
-        st.session_state["access_granted"] = False
+        supabase.auth.sign_out()
+        st.session_state["user_authenticated"] = False
         st.rerun()
 
-    # Core Application Layout
     uploaded_chart = st.file_uploader("Choose a chart screenshot...", type=["jpg", "jpeg", "png"])
 
     if uploaded_chart is not None:
@@ -68,10 +105,8 @@ if check_access():
             if st.button("Run Visual Scan", type="primary"):
                 with st.spinner("Scanning chart structure..."):
                     try:
-                        # PULL THE API KEY DIRECTLY FROM HIDDEN SECRETS
                         my_hidden_key = st.secrets["gemini_api_key"]
                         genai.configure(api_key=my_hidden_key)
-                        
                         model = genai.GenerativeModel('gemini-2.5-flash')
                         
                         vision_prompt = f"""
@@ -89,7 +124,6 @@ if check_access():
                         """
                         
                         response = model.generate_content([vision_prompt, img])
-                        
                         st.markdown("---")
                         st.markdown(response.text)
                         
