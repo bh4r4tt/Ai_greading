@@ -51,7 +51,7 @@ if uploaded_chart is not None:
                         genai.configure(api_key=gemini_key)
                         
                         # We use gemini-1.5-flash as it is fast, highly capable in vision, and free
-                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        model = genai.GenerativeModel('gemini-2.5-flash')
                         
                         vision_prompt = f"""
                         You are an elite discretionary price action trader. Analyze this trading chart image based on a {trading_style} profile. 
