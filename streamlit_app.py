@@ -1,131 +1,122 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
-from supabase import create_client, Client
 
 # ----------------------------------------------------
-# 1. INITIAL CONFIGURATION
+# 1. UI & CSS OVERHAUL
 # ----------------------------------------------------
-st.set_page_config(page_title="AI Vision Analyst", layout="wide")
+st.set_page_config(page_title="AI Trading Analyst", layout="wide", initial_sidebar_state="collapsed")
 
-# Initialize Supabase Client
-@st.cache_resource
-def init_supabase() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
-
-supabase = init_supabase()
+# Inject Custom CSS for Dark Theme & SaaS look
+st.markdown("""
+<style>
+    .stApp { background-color: #0a0a0a; color: #ffffff; }
+    .stButton>button {
+        background-color: #00d06b; color: black; border-radius: 8px; border: none;
+        padding: 0.75rem 1.5rem; font-weight: 800; width: 100%; transition: all 0.3s ease;
+    }
+    .stButton>button:hover { background-color: #00ff84; box-shadow: 0 0 15px rgba(0, 208, 107, 0.4); }
+    header {visibility: hidden;} footer {visibility: hidden;}
+    .stTextInput input { background-color: #1a1a1a; color: white; border: 1px solid #333; border-radius: 6px; }
+</style>
+""", unsafe_allow_html=True)
 
 # ----------------------------------------------------
-# 2. SUPABASE AUTHENTICATION SYSTEM
+# 2. THE "LANDING PAGE" & ACCESS KEY SYSTEM
 # ----------------------------------------------------
 def auth_system():
-    if "user_authenticated" not in st.session_state:
-        st.session_state["user_authenticated"] = False
+    if "access_granted" not in st.session_state:
+        st.session_state["access_granted"] = False
 
-    if not st.session_state["user_authenticated"]:
-        st.title("🔐 Welcome to BullGPT Analyst")
-        st.markdown("Create an account or log in to access the chart scanner.")
+    if not st.session_state["access_granted"]:
         
-        # Create Login / Register Tabs
-        tab1, tab2 = st.tabs(["Log In", "Register"])
+        # --- HERO SECTION ---
+        st.markdown("<h1 style='text-align: center; font-size: 3rem;'>Get pro-level analysis instantly with AI.</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #888; font-size: 1.2rem;'>Upload a chart and get institutional-grade support, resistance, and execution scenarios in 5 seconds.</p>", unsafe_allow_html=True)
+        st.write("")
+        st.write("")
         
-        with tab1:
-            st.subheader("Sign In")
-            login_email = st.text_input("Email", key="login_email")
-            login_password = st.text_input("Password", type="password", key="login_password")
+        col1, col2, col3 = st.columns([1, 1.2, 1])
+        with col2:
+            st.markdown("<h3 style='text-align: center;'>Enter Invite Key</h3>", unsafe_allow_html=True)
+            user_key = st.text_input("Access Key", type="password", label_visibility="collapsed")
             
-            if st.button("Login", type="primary"):
-                try:
-                    # Send credentials to Supabase
-                    response = supabase.auth.sign_in_with_password({
-                        "email": login_email,
-                        "password": login_password
-                    })
-                    st.session_state["user_authenticated"] = True
-                    st.success("Logged in successfully!")
+            if st.button("Unlock Scanner", type="primary"):
+                # Check against the keys in your Streamlit Secrets
+                if user_key in st.secrets["valid_keys"]:
+                    st.session_state["access_granted"] = True
                     st.rerun()
-                except Exception as e:
-                    st.error("Invalid email or password.")
-                    
-        with tab2:
-            st.subheader("Create a Free Account")
-            reg_email = st.text_input("Email", key="reg_email")
-            reg_password = st.text_input("Password (min 6 characters)", type="password", key="reg_password")
+                else:
+                    st.error("🚫 Invalid or expired access key.")
+
+        st.write("---")
+        
+        # --- HOW IT WORKS SECTION ---
+        st.markdown("<h2 style='text-align: center;'>How it works</h2>", unsafe_allow_html=True)
+        st.write("")
+        step1, step2, step3 = st.columns(3)
+        with step1:
+            st.subheader("1. Take a screenshot")
+            st.write("Snap a screenshot of your M5, M15, or H1 chart.")
+        with step2:
+            st.subheader("2. AI Analysis")
+            st.write("Our engine scans for No SD zones, liquidity sweeps, and limits.")
+        with step3:
+            st.subheader("3. Execute")
+            st.write("Get strict bull/bear scenarios with exact invalidation levels.")
             
-            if st.button("Register", type="primary"):
-                try:
-                    # Create new user in Supabase
-                    response = supabase.auth.sign_up({
-                        "email": reg_email,
-                        "password": reg_password
-                    })
-                    st.success("Account created! You can now log in.")
-                except Exception as e:
-                    st.error(f"Registration failed: {str(e)}")
-                    
         return False
     return True
 
 # ----------------------------------------------------
-# 3. MAIN APPLICATION (Only runs if authenticated)
+# 3. THE APP DASHBOARD (Only visible when unlocked)
 # ----------------------------------------------------
 if auth_system():
     
-    st.title("📊 AI Vision-Based Chart Analyst")
-    st.markdown("Upload a screenshot of any trading chart for instant visual structure analysis.")
-
-    st.sidebar.header("Configuration Panel")
+    st.title("⚡ AI Execution Matrix")
     
-    trading_style = st.sidebar.selectbox(
-        "Your Trading Profile", 
-        ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing Trader (H4-Daily)"]
-    )
-    
-    # Logout Button
-    if st.sidebar.button("Log Out"):
-        supabase.auth.sign_out()
-        st.session_state["user_authenticated"] = False
-        st.rerun()
+    with st.sidebar:
+        st.header("Terminal Settings")
+        trading_style = st.selectbox("Trading Style", ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing (H4+)"])
+        st.write("---")
+        if st.button("Lock System"):
+            st.session_state["access_granted"] = False
+            st.rerun()
 
-    uploaded_chart = st.file_uploader("Choose a chart screenshot...", type=["jpg", "jpeg", "png"])
+    uploaded_chart = st.file_uploader("Upload Chart Screenshot", type=["jpg", "jpeg", "png"])
 
     if uploaded_chart is not None:
         layout_left, layout_right = st.columns([1, 1])
         
         with layout_left:
-            st.subheader("Uploaded Price Action Chart")
             img = Image.open(uploaded_chart)
             st.image(img, use_container_width=True)
             
         with layout_right:
-            st.subheader("AI Structural Analysis Matrix")
+            st.subheader("Structural Analysis")
             
-            if st.button("Run Visual Scan", type="primary"):
-                with st.spinner("Scanning chart structure..."):
+            if st.button("Generate Setup", type="primary"):
+                with st.spinner("Calculating matrices..."):
                     try:
+                        # Pull your private Gemini key from Streamlit Secrets
                         my_hidden_key = st.secrets["gemini_api_key"]
                         genai.configure(api_key=my_hidden_key)
                         model = genai.GenerativeModel('gemini-2.5-flash')
                         
                         vision_prompt = f"""
-                        You are an elite discretionary price action trader. Analyze this trading chart image based on a {trading_style} profile. 
-                        
-                        Provide a strict, professional trade setup layout covering:
-                        1. **Market Structure Evaluation:** Define current trend bias.
-                        2. **Key Liquidity Levels:** Identify visible major support, resistance, or Supply/Demand zones. 
+                        You are an elite discretionary price action trader. Analyze this chart for a {trading_style} profile. 
+                        Provide:
+                        1. **Market Structure:** Trend bias.
+                        2. **Liquidity Levels:** Major support/resistance or Supply/Demand zones. 
                         3. **Execution Scenarios:**
-                           - **Bull Case Scenario:** Potential long entry coordinates, target, and invalidation level.
-                           - **Bear Case Scenario:** Potential short entry coordinates, target, and invalidation level.
-                        4. **Risk Assessment Score:** Rate the quality of the visual setup from 1-10.
-                        
-                        Speak in absolute parameter terms. Output plain text only. Do not use generic financial disclaimers.
+                           - **Bull Case:** Entry, target, invalidation.
+                           - **Bear Case:** Entry, target, invalidation.
+                        4. **Score:** Setup quality (1-10).
+                        Output plain text only. Be highly precise.
                         """
                         
                         response = model.generate_content([vision_prompt, img])
-                        st.markdown("---")
                         st.markdown(response.text)
                         
                     except Exception as e:
-                        st.error(f"Vision Scanning Error: {str(e)}")
+                        st.error(f"Error: {str(e)}")
