@@ -1,114 +1,102 @@
 import streamlit as st
-import yfinance as yf
-import pandas as pd
-import plotly.graph_objects as go
 from openai import OpenAI
+import base64
 
 # ----------------------------------------------------
-# 1. UI & Interface Setup
+# 1. UI Configuration
 # ----------------------------------------------------
-st.set_page_config(page_title="BullGPT Engine", layout="wide", page_icon="🐂")
-st.title("🐂 BullGPT Execution Engine")
-st.markdown("Automated technical analysis and quantitative limit-order matrices.")
+st.set_page_config(page_title="AI Vision Analyst", layout="wide", page_icon="📊")
+st.title("📊 AI Vision-Based Chart Analyst")
+st.markdown("Upload a screenshot of any trading chart (M5, M15, Daily) for instant visual structure analysis.")
 
 # ----------------------------------------------------
-# 2. Sidebar Configuration (Pro Mode)
+# 2. Sidebar Configuration
 # ----------------------------------------------------
-st.sidebar.header("API & Market Routing")
-openai_key = st.sidebar.text_input("OpenAI API Key", type="password")
+st.sidebar.header("Configuration Panel")
+openai_key = st.sidebar.text_input("Enter OpenAI API Key", type="password")
 
-# Pre-loaded for high-volatility markets
-market_choices = {
-    "Gold (XAU/USD)": "GC=F",
-    "Silver (XAG/USD)": "SI=F",
-    "Bitcoin (BTC/USD)": "BTC-USD"
-}
-selected_market = st.sidebar.selectbox("Select Asset", list(market_choices.keys()))
-ticker = market_choices[selected_market]
+trading_style = st.sidebar.selectbox(
+    "Your Trading Profile", 
+    ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing Trader (H4-Daily)"]
+)
 
-# Granular intraday timeframes
-interval = st.sidebar.selectbox("Timeframe", ["5m", "15m", "1h"], index=1)
-period = "5d" if interval in ["5m", "15m"] else "1mo"
+if not openai_key:
+    st.sidebar.warning("⚠️ Enter your OpenAI API key to activate the visual scanner.")
+
+# Helper function to convert the uploaded image to base64 for OpenAI Vision API
+def encode_uploaded_image(uploaded_file):
+    return base64.b64encode(uploaded_file.read()).decode('utf-8')
 
 # ----------------------------------------------------
-# 3. Data Extraction & Processing
+# 3. Core Application Layout
 # ----------------------------------------------------
-def pull_market_data(t, i, p):
-    df = yf.Ticker(t).history(period=p, interval=i)
-    if df.empty: 
-        return None, None
-        
-    # Calculate RSI
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-    return df, df.iloc[-1]
+# File uploader optimized for iOS Photo Library / Browser uploads
+uploaded_chart = st.file_uploader("Choose a chart screenshot...", type=["jpg", "jpeg", "png"])
 
-if ticker:
-    df, latest = pull_market_data(ticker, interval, period)
+if uploaded_chart is not None:
+    # Display layout split: Left side shows your image, Right side displays AI output
+    layout_left, layout_right = st.columns([1, 1])
     
-    if latest is not None:
-        price = latest['Close']
-        rsi = latest['RSI']
+    with layout_left:
+        st.subheader("Uploaded Price Action Chart")
+        st.image(uploaded_chart, use_container_width=True)
         
-        # Display live metrics
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Current Price", f"${price:.2f}")
-        col2.metric("RSI (14)", f"{rsi:.2f}")
-        col3.metric("Interval", interval.upper())
+    with layout_right:
+        st.subheader("AI Structural Analysis Matrix")
         
-        layout_l, layout_r = st.columns([1.2, 1])
-        
-        # Professional Candlestick Chartting
-        with layout_l:
-            fig = go.Figure(data=[go.Candlestick(x=df.index,
-                open=df['Open'], high=df['High'],
-                low=df['Low'], close=df['Close'], name="Price Action")])
-            
-            fig.update_layout(
-                template="plotly_dark", 
-                margin=dict(l=0, r=0, t=30, b=0), 
-                height=450,
-                xaxis_rangeslider_visible=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-        # AI Order Flow Generation
-        with layout_r:
-            st.subheader("AI Order Flow Analysis")
-            if st.button("Generate Trade Setup", type="primary"):
-                if not openai_key:
-                    st.error("⚠️ API Key required in the sidebar.")
-                else:
-                    with st.spinner("Analyzing price action and volume..."):
-                        try:
-                            client = OpenAI(api_key=openai_key)
-                            
-                            # Advanced prompt targeting limits and No SD zones
-                            prompt = f"""
-                            Analyze the current market structure for {selected_market} on the {interval} timeframe.
-                            Current Price: ${price:.2f}
-                            RSI: {rsi:.2f}
-                            
-                            Provide a strict, execution-focused trading setup including:
-                            1. Specific Buy Limit or Sell Limit order coordinates based on recent retracements.
-                            2. Exact Stop-Loss and Take-Profit zones.
-                            3. Evaluate the price action to confirm if a 'No SD' (No Supply / No Demand) setup is present.
-                            
-                            Output in a highly structured, institutional format. Do not use generic warnings.
-                            """
-                            
-                            res = client.chat.completions.create(
-                                model="gpt-4o",
-                                messages=[
-                                    {"role": "system", "content": "You are an elite quantitative trader who speaks in precise execution parameters."},
-                                    {"role": "user", "content": prompt}
-                                ],
-                                temperature=0.4
-                            )
-                            st.markdown("---")
-                            st.markdown(res.choices[0].message.content)
-                        except Exception as e:
-                            st.error(f"API Error: {str(e)}")
+        if st.button("Run Visual Scan", type="primary"):
+            if not openai_key:
+                st.error("Please add your OpenAI API Key in the sidebar to execute the vision module.")
+            else:
+                with st.spinner("Processing chart patterns and mapping institutional liquidity zones..."):
+                    try:
+                        # 1. Convert image to string format
+                        base64_image = encode_uploaded_image(uploaded_chart)
+                        
+                        # 2. Initialize OpenAI Vision Client
+                        client = OpenAI(api_key=openai_key)
+                        
+                        # 3. Construct a highly specific prompt targeting your setup style
+                        vision_prompt = f"""
+                        You are an elite discretionary price action trader and quantitative analyst. 
+                        Analyze this trading chart image based on a {trading_style} profile. 
+                        
+                        Look closely at the candle structures, support/resistance lines, volume (if visible), and technical indicators. 
+                        
+                        Provide a strict, professional trade setup layout covering:
+                        1. **Market Structure Evaluation:** Define current trend bias (Bullish/Bearish/Consolidating) and market context.
+                        2. **Key Liquidity Levels:** Identify visible major support, resistance, or Supply/Demand zones. Keep an eye out for potential 'No SD' (No Supply/No Demand) test setups or retracements.
+                        3. **Execution Scenarios (Probability Matrix):**
+                           - **Bull Case Scenario:** Potential long entry coordinates, target take-profit zones, invalidation level (stop-loss), and historical probability score (e.g., 65%).
+                           - **Bear Case Scenario:** Potential short entry coordinates, target take-profit zones, invalidation level (stop-loss), and historical probability score.
+                        4. **Risk Assessment Score:** Rate the quality of the visual setup from 1-10 based on structure clarity.
+                        
+                        Speak in absolute parameter terms. Do not add generic financial disclaimers or conversational fluff.
+                        """
+                        
+                        # 4. Call GPT-4o's Vision API
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": vision_prompt},
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {
+                                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            max_tokens=1000,
+                            temperature=0.3  # Kept low for deterministic, strict technical matching
+                        )
+                        
+                        st.markdown("---")
+                        st.markdown(response.choices[0].message.content)
+                        
+                    except Exception as e:
+                        st.error(f"Vision Scanning Error: {str(e)}")
