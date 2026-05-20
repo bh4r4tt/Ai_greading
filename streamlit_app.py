@@ -3,54 +3,75 @@ import google.generativeai as genai
 from PIL import Image
 
 # ----------------------------------------------------
-# 1. UI Configuration
+# 1. INITIAL CONFIGURATION
 # ----------------------------------------------------
 st.set_page_config(page_title="AI Vision Analyst", layout="wide")
-st.title("AI Vision-Based Chart Analyst (Free Tier)")
-st.markdown("Upload a screenshot of any trading chart for instant visual structure analysis.")
 
 # ----------------------------------------------------
-# 2. Sidebar Configuration
+# 2. ACCESS KEY LOGIN SYSTEM
 # ----------------------------------------------------
-st.sidebar.header("Configuration Panel")
-gemini_key = st.sidebar.text_input("Enter Free Gemini API Key", type="password")
+def check_access():
+    """Checks if the user has entered a valid access key."""
+    if "access_granted" not in st.session_state:
+        st.session_state["access_granted"] = False
 
-trading_style = st.sidebar.selectbox(
-    "Your Trading Profile", 
-    ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing Trader (H4-Daily)"]
-)
-
-if not gemini_key:
-    st.sidebar.warning("⚠️ Enter your Gemini API key to activate the visual scanner.")
-
-# ----------------------------------------------------
-# 3. Core Application Layout
-# ----------------------------------------------------
-uploaded_chart = st.file_uploader("Choose a chart screenshot...", type=["jpg", "jpeg", "png"])
-
-if uploaded_chart is not None:
-    layout_left, layout_right = st.columns([1, 1])
-    
-    with layout_left:
-        st.subheader("Uploaded Price Action Chart")
+    if not st.session_state["access_granted"]:
+        st.title("🔐 Welcome to BullGPT Analyst")
+        st.markdown("Please enter your private access key to use the scanner.")
         
-        # Open image using PIL for Gemini
-        img = Image.open(uploaded_chart)
-        st.image(img, use_container_width=True)
+        user_key = st.text_input("Access Key", type="password")
         
-    with layout_right:
-        st.subheader("AI Structural Analysis Matrix")
-        
-        if st.button("Run Visual Scan", type="primary"):
-            if not gemini_key:
-                st.error("Please add your Gemini API Key in the sidebar.")
+        if st.button("Login"):
+            # Check if the entered key is in our secret list of valid keys
+            if user_key in st.secrets["valid_access_keys"]:
+                st.session_state["access_granted"] = True
+                st.rerun()
             else:
+                st.error("🚫 Invalid or expired access key.")
+        return False
+    return True
+
+# ----------------------------------------------------
+# 3. MAIN APPLICATION (Only runs if unlocked)
+# ----------------------------------------------------
+if check_access():
+    
+    st.title("📊 AI Vision-Based Chart Analyst")
+    st.markdown("Upload a screenshot of any trading chart for instant visual structure analysis.")
+
+    # Sidebar Configuration (No longer asks for API Key!)
+    st.sidebar.header("Configuration Panel")
+    
+    trading_style = st.sidebar.selectbox(
+        "Your Trading Profile", 
+        ["Scalper (M1-M15)", "Day Trader (M15-H1)", "Swing Trader (H4-Daily)"]
+    )
+    
+    if st.sidebar.button("Log Out"):
+        st.session_state["access_granted"] = False
+        st.rerun()
+
+    # Core Application Layout
+    uploaded_chart = st.file_uploader("Choose a chart screenshot...", type=["jpg", "jpeg", "png"])
+
+    if uploaded_chart is not None:
+        layout_left, layout_right = st.columns([1, 1])
+        
+        with layout_left:
+            st.subheader("Uploaded Price Action Chart")
+            img = Image.open(uploaded_chart)
+            st.image(img, use_container_width=True)
+            
+        with layout_right:
+            st.subheader("AI Structural Analysis Matrix")
+            
+            if st.button("Run Visual Scan", type="primary"):
                 with st.spinner("Scanning chart structure..."):
                     try:
-                        # Configure Google Gemini
-                        genai.configure(api_key=gemini_key)
+                        # PULL THE API KEY DIRECTLY FROM HIDDEN SECRETS
+                        my_hidden_key = st.secrets["gemini_api_key"]
+                        genai.configure(api_key=my_hidden_key)
                         
-                        # We use gemini-1.5-flash as it is fast, highly capable in vision, and free
                         model = genai.GenerativeModel('gemini-2.5-flash')
                         
                         vision_prompt = f"""
@@ -67,7 +88,6 @@ if uploaded_chart is not None:
                         Speak in absolute parameter terms. Output plain text only. Do not use generic financial disclaimers.
                         """
                         
-                        # Pass both the text prompt and the image to the model
                         response = model.generate_content([vision_prompt, img])
                         
                         st.markdown("---")
